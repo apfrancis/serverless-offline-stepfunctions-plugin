@@ -1,5 +1,5 @@
-const path = require('path');
-const AWS = require('aws-sdk');
+const path = require("path");
+const AWS = require("aws-sdk");
 
 class ServerlessPlugin {
   constructor(serverless, options) {
@@ -8,8 +8,8 @@ class ServerlessPlugin {
     this.serverlessLog = this.serverless.cli.log.bind(this.serverless.cli);
 
     this.hooks = {
-      'offline:start': this.startHandler.bind(this),
-      'offline:start:init': this.startHandler.bind(this),
+      "offline:start": this.startHandler.bind(this),
+      "offline:start:init": this.startHandler.bind(this),
     };
   }
 
@@ -21,11 +21,11 @@ class ServerlessPlugin {
       (this.serverless.service.custom &&
         this.serverless.service.custom.offlineStepFunctions) ||
       {};
-    this.provider = this.serverless.getProvider('aws');
+    this.provider = this.serverless.getProvider("aws");
     this.region = this.provider.getRegion();
     this.stage = this.provider.getStage();
-    this.accountId = this.config.accountId || '0123456789';
-    this.stepFunctionHost = this.config.host || 'localhost';
+    this.accountId = this.config.accountId || "0123456789";
+    this.stepFunctionHost = this.config.host || "localhost";
     this.stepFunctionPort = this.config.port || 4584;
     this.stepFunctionsApi = new AWS.StepFunctions({
       endpoint: `http://${this.stepFunctionHost}:${this.stepFunctionPort}`,
@@ -34,24 +34,24 @@ class ServerlessPlugin {
         this.region,
       accessKeyId:
         (AWS.config.credentials && AWS.config.credentials.accessKeyId) ||
-        'fake',
+        "fake",
       secretAccessKey:
         (AWS.config.credentials && AWS.config.credentials.secretAccessKey) ||
-        'fake',
+        "fake",
     });
 
     this.stateMachines = this.serverless.service.stepFunctions.stateMachines;
 
     if (!this.stateMachines) {
-      this.serverlessLog('No state machines found, skipping creation.');
+      this.serverlessLog("No state machines found, skipping creation.");
       return;
     }
 
     // Create state machines for each one defined in serverless.yml.
     await Promise.all(
-      Object.keys(this.stateMachines).map(stateMachineName =>
-        this.createStateMachine(stateMachineName),
-      ),
+      Object.keys(this.stateMachines).map((stateMachineName) =>
+        this.createStateMachine(stateMachineName)
+      )
     );
   }
 
@@ -65,8 +65,8 @@ class ServerlessPlugin {
         name: stateMachineName,
         definition: JSON.stringify(
           this.buildStateMachine(
-            this.stateMachines[stateMachineName].definition,
-          ),
+            this.stateMachines[stateMachineName].definition
+          )
         ),
         roleArn: `arn:aws:iam::${this.accountId}:role/service-role/MyRole`,
       };
@@ -77,7 +77,7 @@ class ServerlessPlugin {
       this.serverlessLog(`Successfully created ${response.stateMachineArn}`);
 
       this.serverlessLog(
-        `ARN available at OFFLINE_STEP_FUNCTIONS_ARN_${stateMachineName}`,
+        `ARN available at OFFLINE_STEP_FUNCTIONS_ARN_${stateMachineName}`
       );
 
       process.env[`OFFLINE_STEP_FUNCTIONS_ARN_${stateMachineName}`] =
@@ -101,7 +101,7 @@ class ServerlessPlugin {
 
   buildStates(states) {
     const stateNames = Object.keys(states);
-    stateNames.forEach(stateName => {
+    stateNames.forEach((stateName) => {
       const state = states[stateName];
       if (state.Resource) {
         // eslint-disable-next-line no-param-reassign
@@ -109,7 +109,7 @@ class ServerlessPlugin {
       }
 
       if (state.Branches) {
-        state.Branches.map(branch => {
+        state.Branches.map((branch) => {
           // eslint-disable-next-line no-param-reassign
           branch.States = this.buildStates(branch.States);
           return branch;
@@ -122,11 +122,11 @@ class ServerlessPlugin {
 
   buildStateArn(state, stateName) {
     switch (state.Type) {
-      case 'Task':
+      case "Task":
         // eslint-disable-next-line no-param-reassign
         state.Resource =
           // eslint-disable-next-line prettier/prettier
-          `arn:aws:lambda:${this.region}:${this.accountId}:function:${this.service}-${this.stage}-${this.config.functions[stateName]}`;
+          `arn:aws:lambda:${this.region}:${this.accountId}:function:${this.stage}-${this.config.functions[stateName]}`;
         break;
 
       default:
@@ -137,18 +137,18 @@ class ServerlessPlugin {
   }
 
   yamlParse() {
-    const { servicePath } = this.serverless.config;
+    const servicePath = process.cwd();
     if (!servicePath) {
       return Promise.resolve();
     }
 
-    const serverlessYmlPath = path.join(servicePath, 'serverless.yml');
+    const serverlessYmlPath = path.join(servicePath, "serverless.yml");
     return this.serverless.yamlParser
       .parse(serverlessYmlPath)
-      .then(serverlessFileParam =>
+      .then((serverlessFileParam) =>
         this.serverless.variables
           .populateObject(serverlessFileParam)
-          .then(parsedObject => {
+          .then((parsedObject) => {
             this.serverless.service.stepFunctions = {};
             this.serverless.service.stepFunctions.stateMachines =
               parsedObject.stepFunctions &&
@@ -166,7 +166,7 @@ class ServerlessPlugin {
                 this.options.stage ||
                 (this.serverless.service.provider &&
                   this.serverless.service.provider.stage) ||
-                'dev';
+                "dev";
             }
 
             if (!this.serverless.pluginManager.cliOptions.region) {
@@ -174,14 +174,14 @@ class ServerlessPlugin {
                 this.options.region ||
                 (this.serverless.service.provider &&
                   this.serverless.service.provider.region) ||
-                'us-east-1';
+                "us-east-1";
             }
 
             this.serverless.variables.populateService(
-              this.serverless.pluginManager.cliOptions,
+              this.serverless.pluginManager.cliOptions
             );
             return Promise.resolve();
-          }),
+          })
       );
   }
 }
