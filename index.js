@@ -24,7 +24,7 @@ class ServerlessPlugin {
     this.provider = this.serverless.getProvider("aws");
     this.region = this.provider.getRegion();
     this.stage = this.provider.getStage();
-    this.accountId = this.config.accountId || "0123456789";
+    this.accountId = this.config.accountId || "000000000000";
     this.stepFunctionHost = this.config.host || "localhost";
     this.stepFunctionPort = this.config.port || 4584;
     this.stepFunctionsApi = new AWS.StepFunctions({
