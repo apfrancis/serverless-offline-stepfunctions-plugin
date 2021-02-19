@@ -1,32 +1,32 @@
-const path = require("path");
-const AWS = require("aws-sdk");
+const path = require('path')
+const AWS = require('aws-sdk')
 
 class ServerlessPlugin {
   constructor(serverless, options) {
-    this.serverless = serverless;
-    this.options = options;
-    this.serverlessLog = this.serverless.cli.log.bind(this.serverless.cli);
+    this.serverless = serverless
+    this.options = options
+    this.serverlessLog = this.serverless.cli.log.bind(this.serverless.cli)
 
     this.hooks = {
-      "offline:start": this.startHandler.bind(this),
-      "offline:start:init": this.startHandler.bind(this),
-    };
+      'offline:start': this.startHandler.bind(this),
+      'offline:start:init': this.startHandler.bind(this)
+    }
   }
 
   async startHandler() {
-    await this.yamlParse();
+    await this.yamlParse()
 
-    this.service = this.serverless.service.service;
+    this.service = this.serverless.service.service
     this.config =
       (this.serverless.service.custom &&
         this.serverless.service.custom.offlineStepFunctions) ||
-      {};
-    this.provider = this.serverless.getProvider("aws");
-    this.region = this.provider.getRegion();
-    this.stage = this.provider.getStage();
-    this.accountId = this.config.accountId || "000000000000";
-    this.stepFunctionHost = this.config.host || "localhost";
-    this.stepFunctionPort = this.config.port || 4584;
+      {}
+    this.provider = this.serverless.getProvider('aws')
+    this.region = this.provider.getRegion()
+    this.stage = this.provider.getStage()
+    this.accountId = this.config.accountId || '000000000000'
+    this.stepFunctionHost = this.config.host || 'localhost'
+    this.stepFunctionPort = this.config.port || 4584
     this.stepFunctionsApi = new AWS.StepFunctions({
       endpoint: `http://${this.stepFunctionHost}:${this.stepFunctionPort}`,
       region:
@@ -34,32 +34,32 @@ class ServerlessPlugin {
         this.region,
       accessKeyId:
         (AWS.config.credentials && AWS.config.credentials.accessKeyId) ||
-        "fake",
+        'fake',
       secretAccessKey:
         (AWS.config.credentials && AWS.config.credentials.secretAccessKey) ||
-        "fake",
-    });
+        'fake'
+    })
 
-    this.stateMachines = this.serverless.service.stepFunctions.stateMachines;
+    this.stateMachines = this.serverless.service.stepFunctions.stateMachines
 
     if (!this.stateMachines) {
-      this.serverlessLog("No state machines found, skipping creation.");
-      return;
+      this.serverlessLog('No state machines found, skipping creation.')
+      return
     }
 
     // Create state machines for each one defined in serverless.yml.
     await Promise.all(
-      Object.keys(this.stateMachines).map((stateMachineName) =>
+      Object.keys(this.stateMachines).map(stateMachineName =>
         this.createStateMachine(stateMachineName)
       )
-    );
+    )
   }
 
   async createStateMachine(stateMachineName) {
-    let response;
+    let response
 
     try {
-      this.serverlessLog(`Creating state machine ${stateMachineName}`);
+      this.serverlessLog(`Creating state machine ${stateMachineName}`)
 
       const params = {
         name: stateMachineName,
@@ -68,105 +68,105 @@ class ServerlessPlugin {
             this.stateMachines[stateMachineName].definition
           )
         ),
-        roleArn: `arn:aws:iam::${this.accountId}:role/service-role/MyRole`,
-      };
+        roleArn: `arn:aws:iam::${this.accountId}:role/service-role/MyRole`
+      }
       response = await this.stepFunctionsApi
         .createStateMachine(params)
-        .promise();
+        .promise()
 
-      this.serverlessLog(`Successfully created ${response.stateMachineArn}`);
+      this.serverlessLog(`Successfully created ${response.stateMachineArn}`)
 
       this.serverlessLog(
         `ARN available at OFFLINE_STEP_FUNCTIONS_ARN_${stateMachineName}`
-      );
+      )
 
       process.env[`OFFLINE_STEP_FUNCTIONS_ARN_${stateMachineName}`] =
-        response.stateMachineArn;
+        response.stateMachineArn
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error(error);
+      console.error(error)
     }
 
-    return response;
+    return response
   }
 
   buildStateMachine(stateMachine) {
     if (stateMachine.States) {
       // eslint-disable-next-line no-param-reassign
-      stateMachine.States = this.buildStates(stateMachine.States);
+      stateMachine.States = this.buildStates(stateMachine.States)
     }
 
-    return stateMachine;
+    return stateMachine
   }
 
   buildStates(states) {
-    const stateNames = Object.keys(states);
-    stateNames.forEach((stateName) => {
-      const state = states[stateName];
+    const stateNames = Object.keys(states)
+    stateNames.forEach(stateName => {
+      const state = states[stateName]
       if (state.Resource) {
         // eslint-disable-next-line no-param-reassign
-        states[stateName] = this.buildStateArn(state, stateName);
+        states[stateName] = this.buildStateArn(state, stateName)
       }
 
       if (state.Branches) {
-        state.Branches.map((branch) => {
+        state.Branches.map(branch => {
           // eslint-disable-next-line no-param-reassign
-          branch.States = this.buildStates(branch.States);
-          return branch;
-        });
+          branch.States = this.buildStates(branch.States)
+          return branch
+        })
       }
-    });
+    })
 
-    return states;
+    return states
   }
 
   buildStateArn(state, stateName) {
     switch (state.Type) {
-      case "Task":
+      case 'Task':
         // eslint-disable-next-line no-param-reassign
         state.Resource =
           // eslint-disable-next-line prettier/prettier
-          `arn:aws:lambda:${this.region}:${this.accountId}:function:${this.stage}-${this.config.functions[stateName]}`;
-        break;
+          `arn:aws:lambda:${this.region}:${this.accountId}:function:${this.stage}-${this.config.functions[stateName]}`
+        break
 
       default:
-        throw new Error(`Unsupported resource type: ${state.Type}`);
+        throw new Error(`Unsupported resource type: ${state.Type}`)
     }
 
-    return state;
+    return state
   }
 
   yamlParse() {
-    const servicePath = process.cwd();
+    const servicePath = process.cwd()
     if (!servicePath) {
-      return Promise.resolve();
+      return Promise.resolve()
     }
 
-    const serverlessYmlPath = path.join(servicePath, "serverless.yml");
+    const serverlessYmlPath = path.join(servicePath, 'serverless.yml')
     return this.serverless.yamlParser
       .parse(serverlessYmlPath)
-      .then((serverlessFileParam) =>
+      .then(serverlessFileParam =>
         this.serverless.variables
           .populateObject(serverlessFileParam)
-          .then((parsedObject) => {
-            this.serverless.service.stepFunctions = {};
+          .then(parsedObject => {
+            this.serverless.service.stepFunctions = {}
             this.serverless.service.stepFunctions.stateMachines =
               parsedObject.stepFunctions &&
               parsedObject.stepFunctions.stateMachines
                 ? parsedObject.stepFunctions.stateMachines
-                : {};
+                : {}
             this.serverless.service.stepFunctions.activities =
               parsedObject.stepFunctions &&
               parsedObject.stepFunctions.activities
                 ? parsedObject.stepFunctions.activities
-                : [];
+                : []
 
             if (!this.serverless.pluginManager.cliOptions.stage) {
               this.serverless.pluginManager.cliOptions.stage =
                 this.options.stage ||
                 (this.serverless.service.provider &&
                   this.serverless.service.provider.stage) ||
-                "dev";
+                'dev'
             }
 
             if (!this.serverless.pluginManager.cliOptions.region) {
@@ -174,16 +174,16 @@ class ServerlessPlugin {
                 this.options.region ||
                 (this.serverless.service.provider &&
                   this.serverless.service.provider.region) ||
-                "us-east-1";
+                'us-east-1'
             }
 
             this.serverless.variables.populateService(
               this.serverless.pluginManager.cliOptions
-            );
-            return Promise.resolve();
+            )
+            return Promise.resolve()
           })
-      );
+      )
   }
 }
 
-module.exports = ServerlessPlugin;
+module.exports = ServerlessPlugin
